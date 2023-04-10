@@ -30,6 +30,10 @@ Moving around:
    j    k    l
    m    ,    .
 
+   1 : Front up     2 : Front down
+   3 : Back up      4 : Back down
+   5 : Together up  6 : Together down   
+
 For Holonomic mode (strafing), hold down the shift key:
 ---------------------------
    U    I    O
@@ -69,6 +73,15 @@ moveBindings = {
         'b':(0,0,-1,0),
     }
 
+stepperBindings = {
+        '1':(0,2,2),
+        '2':(1,2,2),
+        '3':(2,0,2),
+        '4':(2,1,2),
+        '5':(2,2,0),
+        '6':(2,2,1)
+    }
+
 speedBindings={
         'q':(1.1,1.1),
         'z':(.9,.9),
@@ -88,6 +101,9 @@ class PublishThread(threading.Thread):
         self.th = 0.0
         self.speed = 0.0
         self.turn = 0.0
+        self.stepper_front = 2.0
+        self.stepper_back = 2.0
+        self.stepper_together = 2.0
         self.condition = threading.Condition()
         self.done = False
 
@@ -111,7 +127,7 @@ class PublishThread(threading.Thread):
         if rospy.is_shutdown():
             raise Exception("Got shutdown request before subscribers connected")
 
-    def update(self, x, y, z, th, speed, turn):
+    def update(self, x, y, z, th, speed, turn, stepper_front, stepper_back, stepper_together):
         self.condition.acquire()
         self.x = x
         self.y = y
@@ -119,13 +135,16 @@ class PublishThread(threading.Thread):
         self.th = th
         self.speed = speed
         self.turn = turn
+        self.stepper_front = stepper_front
+        self.stepper_back = stepper_back
+        self.stepper_together = stepper_together
         # Notify publish thread that we have a new message.
         self.condition.notify()
         self.condition.release()
 
     def stop(self):
         self.done = True
-        self.update(0, 0, 0, 0, 0, 0)
+        self.update(0, 0, 0, 0, 0, 0, 2.0, 2.0, 2.0)
         self.join()
 
     def run(self):
@@ -147,9 +166,9 @@ class PublishThread(threading.Thread):
             # Copy state into twist message.
             twist.linear.x = self.x * self.speed
             twist.linear.y = self.y * self.speed
-            twist.linear.z = self.z * self.speed
-            twist.angular.x = 0
-            twist.angular.y = 0
+            twist.linear.z = self.stepper_front
+            twist.angular.x = self.stepper_back
+            twist.angular.y = self.stepper_together
             twist.angular.z = self.th * self.turn
 
             self.condition.release()
@@ -160,9 +179,9 @@ class PublishThread(threading.Thread):
         # Publish stop message when thread exits.
         twist.linear.x = 0
         twist.linear.y = 0
-        twist.linear.z = 0
-        twist.angular.x = 0
-        twist.angular.y = 0
+        twist.linear.z = 2.0
+        twist.angular.x = 2.0
+        twist.angular.y = 2.0
         twist.angular.z = 0
         self.publisher.publish(twist_msg)
 
@@ -217,11 +236,14 @@ if __name__=="__main__":
     y = 0
     z = 0
     th = 0
+    stepper_front = 2.0
+    stepper_back = 2.0
+    stepper_together = 2.0
     status = 0
 
     try:
         pub_thread.wait_for_subscribers()
-        pub_thread.update(x, y, z, th, speed, turn)
+        pub_thread.update(x, y, z, th, speed, turn, stepper_front, stepper_back, stepper_together)
 
         print(msg)
         print(vels(speed,turn))
@@ -232,6 +254,10 @@ if __name__=="__main__":
                 y = moveBindings[key][1]
                 z = moveBindings[key][2]
                 th = moveBindings[key][3]
+            elif key in stepperBindings.keys():
+                stepper_front = stepperBindings[key][0]
+                stepper_back = stepperBindings[key][1]
+                stepper_together = stepperBindings[key][2]
             elif key in speedBindings.keys():
                 speed = min(speed_limit, speed * speedBindings[key][0])
                 turn = min(turn_limit, turn * speedBindings[key][1])
@@ -252,10 +278,13 @@ if __name__=="__main__":
                 y = 0
                 z = 0
                 th = 0
+                stepper_front = 2.0
+                stepper_back = 2.0
+                stepper_together = 2.0
                 if (key == '\x03'):
                     break
 
-            pub_thread.update(x, y, z, th, speed, turn)
+            pub_thread.update(x, y, z, th, speed, turn, stepper_front,stepper_back, stepper_together)
 
     except Exception as e:
         print(e)
