@@ -33,6 +33,7 @@ Moving around:
    1 : Front up     2 : Front down
    3 : Back up      4 : Back down
    5 : Together up  6 : Together down   
+   7 : Vacuum Off   8 : Vacuum On
 
 For Holonomic mode (strafing), hold down the shift key:
 ---------------------------
@@ -79,7 +80,9 @@ stepperBindings = {
         '3':(2,0,2),
         '4':(2,1,2),
         '5':(2,2,0),
-        '6':(2,2,1)
+        '6':(2,2,1),
+        '7':(3,2,2),
+        '8':(4,2,2),
     }
 
 speedBindings={
@@ -144,7 +147,7 @@ class PublishThread(threading.Thread):
 
     def stop(self):
         self.done = True
-        self.update(0, 0, 0, 0, 0, 0, 2.0, 2.0, 2.0)
+        self.update(0, 0, 0, 0, 0, 0, 2.0, 2.0, 2.0, 0)
         self.join()
 
     def run(self):
